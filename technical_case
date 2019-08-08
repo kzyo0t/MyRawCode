@@ -1,0 +1,2 @@
+#https://portswigger.net/blog/http-desync-attacks-request-smuggling-reborn
+Kỹ thuật này sử dụng tấn công thay đổi việc xử lý backend của máy chủ nhằm đánh cắp dữ liệu được máy chủ trả về người dùng hợp lệ
