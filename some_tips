@@ -2,3 +2,5 @@
 2. debug git: ssh -vT git@github.com
 3. https://gist.github.com/holmberd/dbeb8789742acfd791747772104160fe
 4. change timezone: sudo timedatectl set-timezone Asia/Ho_Chi_Minh
+5. install openjdk-8: http://ubuntuhandbook.org/index.php/2015/01/install-openjdk-8-ubuntu-14-04-12-04-lts/
+
