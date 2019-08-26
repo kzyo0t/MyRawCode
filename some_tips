@@ -9,3 +9,23 @@
 8. hide user tips: https://winaero.com/blog/how-to-hide-user-accounts-from-the-login-screen-in-windows-10/
 9. https://www.facebook.com/profile/pic.php?cuid=AYjoa12NlxDqtsYu8VW6-fsUyEdSU1Uj4YX6T6oBXxkGvw2VouGa8wVZCNVszvyuiUry3oyd4qoSOsMAXNqJkAMYuSv501yD12gawf_W6o5jqF4KRU2qsTgfXNmzSINI2jU39J6tqU2J4kWYWB1TI_qjHNRR1TGMSEXB2vEMMDJ2DsWtn0ktDvi-m8-p2obT8-iFUHytgiOWupnLxPRStyXa&square_px=64
 10. ssh -R. khi truy cập vào sẽ từ 127.0.0.1
+11.
+n Client-side validation — Checks may not be replicated on the server
+n Database interaction — SQL injection
+n File uploading and downloading — Path traversal vulnerabilities, stored cross-site scripting
+n Display of user-supplied data — Cross-site scripting
+n Dynamic redirects — Redirection and header injection attacks
+n Social networking features — username enumeration, stored cross-sitescripting
+n Login — Username enumeration, weak passwords, ability to use bruteforce
+n Multistage login — Logic flaws
+n Session state — Predictable tokens, insecure handling of tokens
+n Access controls — Horizontal and vertical privilege escalation
+n User impersonation functions — Privilege escalation
+n Use of cleartext communications — Session hijacking, capture of credentials and other sensitive data
+n Off-site links — Leakage of query string parameters in the Refererheader
+n Interfaces to external systems — Shortcuts in the handling of sessions and/or access controls
+n Error messages — Information leakage
+n E-mail interaction — E-mail and/or command injection
+n Native code components or interaction — Buffer overfl ows
+n Use of third-party application components — Known vulnerabilities
+n Identifi able web server software — Common confi guration weaknesses, known software bugs
