@@ -29,3 +29,4 @@ n E-mail interaction — E-mail and/or command injection
 n Native code components or interaction — Buffer overfl ows
 n Use of third-party application components — Known vulnerabilities
 n Identifi able web server software — Common confi guration weaknesses, known software bugs
+12. https://saarsec.rocks/2019/09/04/twctf-phpnote.html
